@@ -40,25 +40,33 @@ Legend: 🔴 blocker · 🟡 confusing/rough · 🟢 worked well · 💡 suggest
 ## Found while building / running — 2026-06-11 live run against the hosted MCP
 
 **TL;DR:** the shop-on-command flow *does* work end-to-end (we delivered a real test gift-card code with
-no payment), but **only by ignoring the documented happy path**. The brief's headline test product and
-the standard `search → get-product-details → buy` sequence both break. Details below.
+no payment), but **only by ignoring the documented happy path**. The standard
+`search → get-product-details → buy` sequence breaks (search hides test/`KN` products; details loops on
+the `test-gift-card-*` family). *Correction 2026-06-12: the brief's headline slug `delos-syldavia` is
+NOT broken — it resolves fine via `get-product-details`/`buy`; it's only invisible to `search`. The
+original "non-existent slug" finding below is retracted.* Details below.
 
 ### 🔴 Blockers
 
-- 🔴 **The brief's headline test product `delos-syldavia` does not exist on a normal key.** Both
-  `search-products` (query `delos`, `syldavia`, `delos-syldavia`, with and without
-  `include_test_products`) and `get-product-details` return nothing/`RESOURCE_NOT_FOUND`. The actual test
-  products that exist are differently named (see below). *Fix: correct the brief — give the exact, current
-  slug(s), or grant the key whatever flag `delos-syldavia` lives behind.*
+- ~~🔴 **The brief's headline test product `delos-syldavia` does not exist on a normal key.**~~
+  **❌ RETRACTED 2026-06-12 — this was wrong; the slug DOES resolve.** See the 2026-06-12 correction
+  below ("`delos-syldavia` DOES resolve after all"): `get-product-details("delos-syldavia",
+  currency:USD)` and `buy-products` both work on this same key. The original probe (query `delos`,
+  `syldavia`, `delos-syldavia` via `search-products`, and `get-product-details`) returned
+  nothing/`RESOURCE_NOT_FOUND`, but that was either a since-fixed provisioning gap or the same
+  `get-product-details` bug under a different code path. **The slug is only invisible to
+  `search-products`** (known-slug-only) — it is fully usable once you pass the exact slug. *Net: the
+  brief's headline slug works; the real fix is to index it in search, not to replace it.*
 
-- 🔴 **`get-product-details` is broken for ALL test products.** For any test slug
-  (`test-gift-card-code`, `test-esim-data-syldavia`, …) it returns
-  *"Product '<slug>' was not found. Did you mean one of these?"* and then **suggests the exact same slug
-  you just passed**, with a valid `product_url`. An agent following the documented flow gets stuck in an
-  infinite `did-you-mean(X) → call(X) → not-found, did-you-mean(X)` loop. It works fine for real products
-  (`amazon_com-usa` returned full details). `include_test_products:true` does not help. *This will hang
-  live demos.* *Fix: make `get-product-details` resolve test slugs (the catalog clearly knows them — it
-  suggests them).*
+- 🔴 **`get-product-details` loops on the `test-gift-card-*` family.** ~~broken for ALL test products~~
+  *(narrowed 2026-06-12 — see correction below: `delos-syldavia` resolves cleanly, so it's NOT all test
+  products; the loop is specific to the `test-gift-card-*` family).* For an affected slug
+  (`test-gift-card-code`, …) it returns *"Product '<slug>' was not found. Did you mean one of these?"* and
+  then **suggests the exact same slug you just passed**, with a valid `product_url`. An agent following the
+  documented flow gets stuck in an infinite `did-you-mean(X) → call(X) → not-found, did-you-mean(X)` loop.
+  It works fine for real products (`amazon_com-usa`) and for `delos-syldavia`. `include_test_products:true`
+  does not help. *This will hang live demos.* *Fix: make `get-product-details` resolve the `test-gift-card-*`
+  slugs (the catalog clearly knows them — it suggests them).*
 
 - 🟡 **No way to discover a test product's valid denominations.** Because `get-product-details` fails, the
   only way we found the package values was to call `buy-products` with a wrong `package_id` and read the
@@ -72,8 +80,10 @@ the standard `search → get-product-details → buy` sequence both break. Detai
     the broken details call; **do not** appear in `search-products` even with `include_test_products:true`.
   - `test-esim-product`, `test-esim-data-syldavia`, `test-esim-duration-syldavia`,
     `test-esim-subscription-pro-syldavia`: these **do** appear in `search-products` with
-    `include_test_products:true` (all country `KN`). So "syldavia" is real — but as an *eSIM* suffix, not a
-    gift card called `delos-syldavia`.
+    `include_test_products:true` (all country `KN`). So "syldavia" is real. ~~but as an *eSIM* suffix, not a
+    gift card called `delos-syldavia`.~~ *Correction 2026-06-12: `delos-syldavia` IS a real gift card
+    (resolves via `get-product-details`/`buy`) — it just never appears in `search`. So "syldavia" spans
+    both a gift card and the eSIM suffixes.*
   *Fix: one canonical, documented list of MCP test slugs + which appear in search vs details.*
 
 - 🟡 **`include_test_products` is required but unmentioned for the MCP.** Test products are hidden from
@@ -118,7 +128,9 @@ the standard `search → get-product-details → buy` sequence both break. Detai
 
 A motivated builder *can* ship a working agentic-commerce demo on this stack in an afternoon — `buy-products`
 + `x402` are genuinely good. But a first-timer following the brief verbatim will **stall within 10 minutes**
-on (1) a non-existent test product and (2) a `get-product-details` loop. Fixing those two things is the
+on (1) the headline test product being **undiscoverable via `search-products`** (it resolves only if you
+already know the exact slug — see the 2026-06-12 correction; not "non-existent" as originally written) and
+(2) a `get-product-details` loop on the `test-gift-card-*` family. Fixing those two things is the
 highest-leverage pre-hackathon change.
 
 ---
@@ -132,9 +144,12 @@ highest-leverage pre-hackathon change.
   ChatGPT Developer Mode, Claude free tier can't add MCP), OAuth-loop fixes, and output-truncation caps.
   *Suggestion: point hackathon participants at this skill as the primary onboarding, not the brief's prose.*
 
-- 🟡 **`delos-syldavia` appears nowhere in the official skill either.** Strong confirmation the brief's
-  test-product slug is simply wrong/outdated. The skill (`references/api.md`) lists `test-gift-card-code`
-  as the example and links the docs' Test Products page.
+- 🟡 **`delos-syldavia` appears nowhere in the official skill either.** ~~Strong confirmation the brief's
+  test-product slug is simply wrong/outdated.~~ *Update 2026-06-12: the slug is NOT wrong — it resolves via
+  `get-product-details`/`buy` (correction below); it's just undocumented in the skill AND invisible to
+  `search`.* The skill (`references/api.md`) lists `test-gift-card-code` as the example and links the docs'
+  Test Products page. *Fix: add `delos-syldavia` to the skill's test-product list so it's discoverable from
+  docs even though search won't surface it.*
 
 - 🟡 **Skill's MCP reference drifts from the live MCP.** `references/mcp.md` calls the detail tool
   `product-details` (the live tool is **`get-product-details`**) and says `package_id` has the form
@@ -273,9 +288,11 @@ order `6a2b32f44efdda1fc75918f3`.
 
 ## Highest-leverage fixes before the event (ranked)
 
-1. **Fix or replace the test-product instruction in the brief** — `delos-syldavia` doesn't resolve; give the
-   real slug(s) (`test-gift-card-code` 10/20/30/50/100; `test-esim-data-syldavia` for eSIM) and the required
-   `include_test_products:true` + a working payment method.
+1. **Index `delos-syldavia` (and other `KN`/test slugs) in `search-products`.** The slug *does* resolve via
+   `get-product-details`/`buy-products` (correction logged 2026-06-12) — it's just invisible to search, so a
+   search-first agent never discovers it. Either index it, or document the known-slug-only set
+   (`delos-syldavia`; `test-gift-card-code` 10/20/30/50/100; `test-esim-data-syldavia` for eSIM) plus the
+   required `include_test_products:true` + a working payment method.
 2. **Fix `get-product-details` for test slugs** (the infinite "did you mean <same slug>" loop) — it will hang
    live agent demos.
 3. **Point participants at `npx skills add bitrefill/agents`** as the canonical onboarding; it's better than
