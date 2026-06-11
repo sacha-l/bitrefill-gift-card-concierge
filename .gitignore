@@ -1,0 +1,12 @@
+# Secrets — never commit your real key
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+*.log
+node_modules/
+
+# Python cache (from scripts/mcp.py)
+__pycache__/
+*.pyc
