@@ -105,11 +105,19 @@ narrating each step. `CLAUDE.md` holds the agent's instructions (test-mode only,
 
 ## Safety / test mode
 
-- Always buys **`delos-syldavia`** — a test product that delivers without real settlement.
-- Never uses store credit / account balance (that would debit a real account) and never completes a real
-  crypto payment.
-- When you're ready for real purchases, request test credits on your test account and swap in a real
-  product id.
+- By default buys **`test-gift-card-code`** with a **crypto** method and **never pays the link** — a test
+  product that delivers a redemption PIN without real settlement.
+- Never uses `cashback`, and only uses `balance` for the **test-credit** path (see below) — never against
+  a real-money account.
+
+## Testing your own integration
+
+Building your own app on the Bitrefill MCP? **[`TESTING.md`](./TESTING.md)** is a generic,
+framework-agnostic guide to exercising the full purchase flow without spending real money — covering both
+the **crypto (never-paid)** path and the **test-credit (`balance`)** path.
+
+> **Test credits are granted manually — contact a member of the Bitrefill team to have them added** to
+> your account. Without them, use the crypto path, which needs no extra setup.
 
 ---
 
@@ -121,6 +129,7 @@ CLAUDE.md                # agent instructions: the shop-on-command flow + safety
 .claude/commands/shop.md # the /shop slash command
 scripts/mcp.py           # tiny Streamable-HTTP MCP client (used to dogfood the flow without a session restart)
 DEMO-RUN.md              # captured proof of a successful end-to-end run
+TESTING.md               # framework-agnostic guide to testing any Bitrefill MCP integration
 .env.example             # copy to .env, add your free key
 README.md                # this guide
 FEEDBACK.md              # running log of friction/issues found while building
