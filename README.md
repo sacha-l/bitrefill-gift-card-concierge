@@ -24,9 +24,12 @@ doubles as a getting-started guide for builders.
 Everything runs against the test product **`test-gift-card-code`**, which delivers a redemption PIN with
 **no real payment**. You can demo the full flow safely. (A real run is captured in [`DEMO-RUN.md`](./DEMO-RUN.md).)
 
-> **Heads up — the brief is slightly off.** It names `delos-syldavia`, but that slug doesn't resolve on a
-> standard key, and `get-product-details` is currently broken for test products. This repo uses the path
-> that actually works; every discrepancy is logged in [`FEEDBACK.md`](./FEEDBACK.md).
+> **Heads up — a couple of brief/MCP quirks.** `get-product-details` loops `"did you mean <the same
+> slug>"` for the `test-gift-card-*` family, so this repo skips it for the test product (the denoms are
+> known: 10/20/30/50/100). The brief's `delos-syldavia` *does* work — it resolves via
+> `get-product-details`/`buy` and is the slug used for the **test-credit** path — it's just invisible to
+> `search-products`. Every discrepancy is logged in [`FEEDBACK.md`](./FEEDBACK.md); see
+> [`TESTING.md`](./TESTING.md) for the paths that work.
 
 ---
 
