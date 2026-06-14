@@ -260,10 +260,41 @@ test credits) exposed a dead-end for agent drivers:
 - 💡 **Reinforces "lead with key-in-URL for agents."** The key-in-URL transport (`api.bitrefill.com/mcp/
   <KEY>`) ties the session to a specific account deterministically — no browser-session ambiguity, no
   switch dance. For multi-account or headless testing this is strictly better than OAuth.
-- 📌 **Open thread (next session):** after re-authing as `sacha@joinwebzero.com`, verify the test credits
-  appear as a non-zero `balance` sub-account, then prove the credit path with a `delos-syldavia` `0.01`
-  buy using `payment_method:"balance"` + matching `balance_currency`. Unresolved until then: **do Bitrefill
-  "test credits" surface to the API as a normal balance at all, or via a separate mechanism?**
+- ✅ **RESOLVED 2026-06-14 (see section below).** Test credits **do** surface as a normal `balance`
+  sub-account — they appeared as **€20 in the EUR sub-account** on `delos-syldavia`'s `account_balances`,
+  and a `payment_method:"balance"` + `balance_currency:"EUR"` buy delivered a PIN and debited the credit
+  (€20 → €19.98). No separate mechanism. The earlier all-zero reads were just the wrong OAuth account.
+
+## 2026-06-14 — credit path PROVEN, but the documented poll loop hangs on balance buys
+
+First run paid from **account balance / test credits** (every prior run was crypto-never-paid). The MCP
+session is now OAuth'd into the account holding the credits.
+
+- ✅ **Test credits = a normal `balance` sub-account.** `get-product-details("delos-syldavia")`
+  `account_balances` showed four sub-accounts: **EUR 20** (funded), XBT 0 (primary), USD 0, cashback 0.
+  So credits are not a separate API concept — they're an ordinary `balance` sub-account, and you must be
+  OAuth'd into the account that holds them (no `whoami` to confirm which account — still a gap).
+- ✅ **Credit-path buy works.** `buy-products(delos-syldavia, "0.01", payment_method:"balance",
+  balance_currency:"EUR")` → `payment_info:{method:"balance", status:"payment_initiated"}` → delivered.
+  PIN `0860810352585415167`, invoice `46fc9d9c-d361-491d-b06d-496e33e64772`, order
+  `6a2e7dcbda3d223eb840d8dc`. **`balance_currency` is required** — omit it and it defaults to the primary
+  XBT sub-account (balance 0) and the buy would fail; you must name the funded sub-account explicitly.
+- ✅ **Real settlement confirmed.** EUR balance dropped **20 → 19.98** between before/after
+  `get-product-details`. Unlike the crypto test runs (which "complete" with no money moved), a balance buy
+  genuinely debits the credit.
+- 🔴 **The documented poll-until-`complete` loop HANGS on balance buys.** Across two polls the top-level
+  `invoice_status` stayed `payment_confirmed` and `orders_delivery_status` stayed `not_delivered` — they
+  never advanced to `complete`/`all_delivered`, **even though `orders[0].status` was `delivered` with a PIN
+  the entire time.** An agent following `CLAUDE.md`'s "poll until `invoice_status:complete` /
+  `all_delivered`" rule loops forever. *Fix (driver side): treat `orders[0].status === "delivered"` +
+  `redemption_available:true` as the completion signal, not the top-level rollup. Fix (server side): make
+  the invoice rollup reflect delivered orders for balance payments.* NB: the earlier crypto runs DID reach
+  top-level `complete`/`all_delivered`, so this rollup desync looks **specific to `payment_method:balance`.**
+- 🟡 **Reported price ≠ actual debit.** The `0.01` USD package showed `detected_payment_info.price:"0.01"
+  EUR`, but the EUR balance fell by **0.02** (20 → 19.98). Sub-cent, but the invoice's stated price and the
+  real charge disagree — verify the actual debit from the balance delta, not the `price` field.
+- 🟢 **Richer redemption payload on `delos-syldavia` than the test-gift-card.** Besides `pin`, the order
+  returned `barcodeFormat:"CODE128"`, an `access_link`, and an iTunes-style `redemptionLink`.
 
 ## 2026-06-12 — clean `/shop` run reconfirms instant-deliver + phantom "payment confirmed"
 
